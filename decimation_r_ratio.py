@@ -6,14 +6,12 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 file_path = os.path.join(script_dir, "p_r_CDF.npz")
 
 data = np.load(file_path)
-#print(data["integral_vals"])
 r_GOE_CDF = CubicSpline(data["r_vals"], data["integral_vals"], extrapolate=False)
 
 def stepf(n: int, I_1_2: float) -> float:
     return (6.0 / (I_1_2 * n)) ** (1.0 / 3.0)
 
 def GOE_params(d, delta):
-    #M_GOE = (1 - np.exp(-delta * delta * 0.25 * np.pi)) / delta
     M_GOE = r_GOE_CDF(delta)/delta
     variance_GOE = M_GOE * (1 - delta * M_GOE) / (d * delta)
     return M_GOE, variance_GOE
@@ -46,35 +44,26 @@ def decimation_r_ratio(
 
         if d <= dmax:
             break
-
-        # Work with a view via mask (no copy yet)
+            
         r = in_r[available_mask]
-
-        #print(d, np.mean(gaps), s_noise)
 
         delta = stepf(d, 3.1)
 
         bin_r = (r / delta).astype(np.int32)
 
-        # Histogram
         bin_counts = np.bincount(bin_r)
         max_bin = len(bin_counts)
 
         M = min(bin_counts[0] / (delta * d)/2, 1.)
 
-        #print(iter, d, M)
-
         idx = np.arange(max_bin, dtype=np.float64)
         poisson_counts =  d * poisson_r_ratio_counts(idx, delta)
 
         z_q = 1.96
-        #if iter == 0:
-            #print(poisson_counts)
+        
         check_compat = np.abs(poisson_counts - bin_counts) <= z_q * np.sqrt(poisson_counts * (1.- poisson_counts/d))
 
-        # Noise threshold
-        s_noise = 0#(np.log(d*delta)- 2*np.log(z_q) + np.log(1.))
-        #s_noise = 0.
+        s_noise = 0
 
         bin_noise = int(s_noise / delta)
 
@@ -92,7 +81,6 @@ def decimation_r_ratio(
         M_GOE, var_GOE = GOE_params(d, delta)
         frac = M_GOE
         d_E = int(frac * d)
-        d_E = max(1, d_E + int(z_q*rng.uniform(-1,1)*np.sqrt(d_E))) #this provides gaussian distribution of dout rather than delta peaks
 
         if successes_local_idx.size <= d_E:
             break
@@ -127,3 +115,4 @@ if __name__ == "__main__":
     plt.legend()
     plt.savefig(f"decimated_r_ratio_exp.pdf")
     plt.close()
+
